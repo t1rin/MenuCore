@@ -14,15 +14,20 @@ class CallbackData:
             raise ValueError(f"callback_data too long: {repr(data)}")
         return data
 
-    def unpack(self, data: str) -> dict[str, str] | None:
+    def unpack(self, data: str) -> dict[str, Any] | None:
         prefix, _, rest = data.partition(":")
         if prefix != self.prefix:
             return None
-        kv: dict[str, str] = {}
+        kv: dict[str, Any] = {}
         if rest:
             for chunk in rest.split(":"):
                 k, _, v = chunk.partition("=")
-                kv[k] = v
+                if v.isdigit():
+                    kv[k] = int(v)
+                elif v == "None":
+                    kv[k] = None
+                else:
+                    kv[k] = v
         return kv
 
 

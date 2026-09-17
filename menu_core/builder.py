@@ -10,6 +10,7 @@ from aiogram.types import (InputMediaDocument, InputMediaPhoto,
 
 from .models import MenuButton
 from .errors import InvalidTypeAttach
+from .callbacks import menu_cb
 
 
 logger = logging.getLogger(__name__)
@@ -50,17 +51,20 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[InputMedia]:
 
 
 def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
-                            ) -> None: #InlineKeyboardMarkup:
+                            ) -> InlineKeyboardMarkup:
     inline_keyboard: list[list[InlineKeyboardButton]] = []
     for line_btns in matrix_btns:
         line_keyboard: list[InlineKeyboardButton] = []
         for button in line_btns:
-            ...
-
-    # InlineKeyboardmarkup(inline_keyboard=[
-    #     [inlinekeyboardbutton(text=text, callback_data=...) 
-    #     for text, callback_data in line] for line in table
-    # ])
+            __id = button.child_id
+            __func = (button.func.__name__ # TODO
+                      if button.func else None)
+            data = menu_cb.pack(__id=__id, __func=__func)
+            keyboard_button = InlineKeyboardButton(
+                text=button.text, callback_data=data)
+            line_keyboard.append(keyboard_button)
+        inline_keyboard.append(line_keyboard)
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
 
 async def call(event: CallbackQuery | Message,

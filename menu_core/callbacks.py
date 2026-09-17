@@ -1,8 +1,5 @@
 from typing import Any
 
-from aiogram import Router, F
-from aiogram.types import CallbackQuery
-
 
 class CallbackData:
     def __init__(self, prefix: str) -> None:
@@ -30,11 +27,3 @@ class CallbackData:
 
 
 menu_cb = CallbackData("__mc")
-router = Router()
-
-
-@router.callback_query(F.data.startswith("__mc:"))
-async def handler(callback: CallbackQuery) -> None:
-    data = menu_cb.unpack(callback.data or "")
-
-    ...

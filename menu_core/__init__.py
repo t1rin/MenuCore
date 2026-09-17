@@ -1,5 +1,5 @@
 from .models import MenuButton, MenuMessage, MenuRegistry
-from .callbacks import router
+from .handler import router
 
 
 __all__ = ["MenuButton", "MenuMessage", "MenuRegistry", "router"]

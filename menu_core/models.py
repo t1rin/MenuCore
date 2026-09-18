@@ -1,21 +1,23 @@
-from typing import Callable
-from dataclasses import dataclass, field
+from typing import Callable, Any, Literal
+from pydantic import BaseModel, ConfigDict
 
 
-@dataclass(frozen=True)
-class MenuButton:
+class MenuButton(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     text: str
     child_id: str | None = None
-    func: Callable | None = None
+    func: Callable[..., Any] | None = None
 
 
-@dataclass(frozen=True)
-class MenuMessage:
+class MenuMessage(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     id: str
     title: str
-    buttons: list[list[MenuButton]] = field(default_factory=list)
+    buttons: list[list[MenuButton]] = []
     attach: dict[str, list[tuple[str, str]]] | None = None  # {type: [(caption, url), ...], ...}
-    need_args: list[str] = field(default_factory=list)
+    need_args: list[str] = []
 
 
 MenuRegistry = dict[str, MenuMessage]

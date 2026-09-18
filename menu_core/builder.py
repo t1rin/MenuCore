@@ -32,7 +32,7 @@ def __is_valid_types_attach(types_attach: list[str]) -> bool:
     return True
 
 
-def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[InputMedia]:
+def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
     if not __is_valid_types_attach(list(attach.keys())):
         raise InvalidTypeAttach("Attachment type is not valid")
 
@@ -68,16 +68,33 @@ def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
 
 
 async def call(event: CallbackQuery | Message,
-               id: int , **data: Any) -> None:
-    """Показывает сообщение с id с параметрами data"""
-    
+               *, title: str | None = None,
+               buttons: list[list[MenuButton]] | None = None, 
+               attach: dict[str, list[tuple[str, str]]] | None = None,
+               **data: Any) -> None:
+    """Показывает сообщение с переданными параметрами:
+    :code:`title` - текст сообщения
+    :code:`buttons` - матрица объектов MenuButton
+    :code:`attach` - прикрепления (фото, видео, документы и тд)
+    :code:`**data` - параметры форматирования title;
+    контекст для обработки нажатия"""
+
     message = event.message if isinstance(event, CallbackQuery) else event
+
+    text = title if title else "<empty>"
+    media = __build_media(attach) if attach else None
+    keyboard = __build_keyboard_markup(buttons) if buttons else None
 
     edited = False
     if isinstance(message, Message):
         try:
-            await message.edit_text("text", reply_markup=None)
             edited = True
+            if not media:
+                await message.edit_text(text, reply_markup=keyboard)
+            elif len(media) == 1:
+                await message.edit_media(media=media[0], reply_markup=keyboard)
+            else:
+                edited = False
         except TelegramBadRequest as e:
             if "message is not modified" in str(e):
                 edited = True
@@ -86,10 +103,15 @@ async def call(event: CallbackQuery | Message,
 
     if not edited:
         target = message if isinstance(message, Message) else (
-            event if isinstance(event, Message) else None
-        )
+            event if isinstance(event, Message) else None)
         if target is not None:
-            sent = await target.answer("text", reply_markup=None)
+            target.delete()
+            if media:
+                await target.answer_media_group(media=media)
+                if keyboard is not None:
+                    await target.answer("⬆️", reply_markup=keyboard)
+            else:
+                await target.answer(text, reply_markup=keyboard)
 
     if isinstance(event, CallbackQuery):
         await event.answer()

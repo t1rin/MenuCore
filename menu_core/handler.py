@@ -13,14 +13,14 @@ from .models import MenuRegistry, MenuMessage, MenuButton
 from .errors import RegisterError, MenuCoreError
 
 
-router = Router()
-logger = logging.getLogger(__name__)
+__router = Router()
+__logger = logging.getLogger(__name__)
 __menu_data: MenuRegistry | None = None
 __funcstions: dict[str, Callable] = {}
 
 
-def register_menus(source_menus: list[dict[str, Any]]) -> None: # протестировать -> Router
-    global __menu_data, __funcstions
+def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
+    global __menu_data, __funcstions, __router
     if __menu_data is not None:
         raise RegisterError("Cannot register menus: menu data is already initialized.")
 
@@ -50,10 +50,12 @@ def register_menus(source_menus: list[dict[str, Any]]) -> None: # протест
 
     __menu_data = menu_registry
 
+    return __router
 
-async def start_message(target: Bot | Message | CallbackQuery,
-                        chat_id: int | None = None,
-                        *, menu_id: str, **data: Any) -> None:
+
+async def start_menu(target: Bot | Message | CallbackQuery,
+                     chat_id: int | None = None,
+                     *, menu_id: str, **data: Any) -> None:
     if __menu_data is None:
         raise MenuCoreError("Menu data is not initialized. "
                             "Call 'register_menus()' before accessing menus.")
@@ -81,11 +83,11 @@ async def start_message(target: Bot | Message | CallbackQuery,
         )
 
 
-@router.callback_query(F.data.startswith("__mc:"))
-async def handler(callback: CallbackQuery) -> None:
+@__router.callback_query(F.data.startswith("__mc:"))
+async def __handler(callback: CallbackQuery) -> None:
     data = menu_cb.unpack(callback.data or "")
     if data is None:
-        logger.error("Failed to unpack callback data: %r", callback.data)
+        __logger.error("Failed to unpack callback data: %r", callback.data)
         return
     
     menu_id = data.get("__id")

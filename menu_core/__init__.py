@@ -1,6 +1,6 @@
 from .models import MenuButton, MenuMessage, MenuRegistry
-from .handler import router, register_menus, start_message
+from .handler import setup_menus, start_menu
 
 
 __all__ = ["MenuButton", "MenuMessage", "MenuRegistry",
-           "router", "register_menus", "start_message"]
+           "setup_menus", "start_menu"]

@@ -91,18 +91,9 @@ async def handler(callback: CallbackQuery) -> None:
     menu_id = data.get("__id")
     func_id = data.get("__func_id")
 
-    if menu_id is None:
-        logger.error(
-            "Missing '__id' key in unpacked callback data! unpacked_data=%r, user_id=%s",
-            data, callback.from_user.id)
-        return
-
-    menu = __menu_data.get(menu_id) if __menu_data else None
-    if menu is None:
-        logger.error("Menu '%s' not found! user_id=%s",
-                     menu_id, callback.from_user.id)
-        return
-
+    menu = None
+    if __menu_data is not None:
+        menu = __menu_data.get(menu_id) if menu_id else None
     func = __funcstions.get(func_id) if func_id else None
 
     new_data: dict = {}
@@ -114,10 +105,13 @@ async def handler(callback: CallbackQuery) -> None:
     else:
         new_data = data
 
-    await call(
-        callback, 
-        title=menu.title, 
-        buttons=menu.buttons, 
-        attach=menu.attach,
-        **new_data,
-    )
+    if menu is not None:
+        await call(
+            callback, 
+            title=menu.title, 
+            buttons=menu.buttons, 
+            attach=menu.attach,
+            **new_data,
+        )
+
+    await callback.answer()

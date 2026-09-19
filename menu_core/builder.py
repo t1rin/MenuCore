@@ -83,20 +83,19 @@ async def call(event: CallbackQuery | Message,
 
     message = event.message if isinstance(event, CallbackQuery) else event
 
-    text = title if title else "<empty>"
+    text = title if title else ". . ."
     media = __build_media(attach) if attach else None
     keyboard = __build_keyboard_markup(buttons) if buttons else None
 
     edited = False
     if isinstance(message, Message):
         try:
-            edited = True
             if not media:
                 await message.edit_text(text, reply_markup=keyboard)
+                edited = True
             elif len(media) == 1:
                 await message.edit_media(media=media[0], reply_markup=keyboard)
-            else:
-                edited = False
+                edited = True
         except TelegramBadRequest as e:
             if "message is not modified" in str(e):
                 edited = True

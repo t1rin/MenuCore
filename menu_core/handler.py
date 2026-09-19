@@ -1,5 +1,6 @@
+import uuid
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from aiogram import Router, Bot, F
 from aiogram.types import Message, CallbackQuery
@@ -14,10 +15,11 @@ from .errors import RegisterError, MenuCoreError
 router = Router()
 logger = logging.getLogger(__name__)
 __menu_data: MenuRegistry | None = None
+__funcstions: dict[str, Callable] = {}
 
 
 def register_menus(source_menus: list[dict[str, Any]]) -> None: # протестировать -> Router
-    global __menu_data
+    global __menu_data, __funcstions
     if __menu_data is not None:
         raise RegisterError("Cannot register menus: menu data is already initialized.")
 
@@ -38,10 +40,12 @@ def register_menus(source_menus: list[dict[str, Any]]) -> None: # протест
         for row in menu.buttons:
             for button in row:
                 if button.child_id is not None and button.child_id not in menu_registry:
-                    raise RegisterError(
-                        f"Menu {repr(menu.id)}: button {repr(button.text)} "
-                        f"references unknown child_id {repr(button.child_id)}"
-                    )
+                    raise RegisterError(f"Menu {repr(menu.id)}: button {repr(button.text)} "
+                                        f"references unknown child_id {repr(button.child_id)}")
+                if callable(button.func) and button.func not in __funcstions.values():
+                    func_id = str(uuid.uuid4())
+                    __funcstions[func_id] = button.func
+                    button.func = func_id
 
     __menu_data = menu_registry
 

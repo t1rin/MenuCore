@@ -20,6 +20,9 @@ __funcstions: dict[str, Callable] = {}
 
 
 def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
+    """Подключает меню и возвращает роутер обработчика
+    :code:`source_menus` - список для регистрации меню"""
+
     global __menu_data, __funcstions, __router
     if __menu_data is not None:
         raise RegisterError("Cannot register menus: menu data is already initialized.")
@@ -56,6 +59,13 @@ def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
 async def start_menu(target: Bot | Message | CallbackQuery,
                      chat_id: int | None = None,
                      *, menu_id: str, **data: Any) -> None:
+    """Показывает стартовое меню по переданным параметрам
+    :code:`target` - для вызова через обработчик или напрямую через Bot
+    :code:`chat_id` - id чата для отправки напрямую через Bot
+    :code:`menu_id` - id начального меню
+    :code:`**data` - контекст выполнения
+    для запуском требуется сначала подключить данные"""
+
     if __menu_data is None:
         raise MenuCoreError("Menu data is not initialized. "
                             "Call 'start_menu()' before accessing menus.")

@@ -34,6 +34,15 @@ def register_menus(source_menus: list[dict[str, Any]]) -> None: # протест
 
         menu_registry[menu.id] = menu
 
+    for menu in menu_registry.values():
+        for row in menu.buttons:
+            for button in row:
+                if button.child_id is not None and button.child_id not in menu_registry:
+                    raise RegisterError(
+                        f"Menu {repr(menu.id)}: button {repr(button.text)} "
+                        f"references unknown child_id {repr(button.child_id)}"
+                    )
+
     __menu_data = menu_registry
 
 

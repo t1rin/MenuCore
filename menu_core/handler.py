@@ -87,14 +87,15 @@ async def __handler(callback: CallbackQuery) -> None:
         __logger.error("Failed to unpack callback data: %r", callback.data)
         return
     
-    menu_id = data.get("__id")
-    func_id = data.get("__func_id")
+    __logger.debug("current context: %r", data)
+    menu_id = data.pop('__id', None)
+    func_id = data.pop("__func_id", None)
 
     menu = None
     if __menu_data is not None:
         menu = __menu_data.get(menu_id) if menu_id else None
     func = __funcstions.get(func_id) if func_id else None
-
+    
     new_data: dict = {}
     if func is not None:
         if inspect.iscoroutinefunction(func):

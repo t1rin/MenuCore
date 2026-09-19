@@ -13,7 +13,7 @@ from .errors import InvalidTypeAttach, MenuCoreError
 from .callbacks import menu_cb
 
 
-logger = logging.getLogger(__name__)
+__logger = logging.getLogger(__name__)
 
 
 def __is_valid_types_attach(types_attach: list[str]) -> bool:
@@ -119,7 +119,7 @@ async def call(event: CallbackQuery | Message,
             if "message is not modified" in str(e):
                 edited = True
             else:
-                logger.debug(f"Could not edit message: {e}")
+                __logger.debug(f"Could not edit message: {e}")
 
     if not edited:
         target = message if isinstance(message, Message) else (

@@ -57,7 +57,11 @@ def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
         line_keyboard: list[InlineKeyboardButton] = []
         for button in line_btns:
             __id = button.child_id
-            data = menu_cb.pack(__id=__id)
+            if isinstance(button.func, str):
+                __func_id = button.func
+            else:
+                __func_id = None
+            data = menu_cb.pack(__id=__id, __func_id=__func_id)
             keyboard_button = InlineKeyboardButton(
                 text=button.text, callback_data=data)
             line_keyboard.append(keyboard_button)

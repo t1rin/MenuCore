@@ -52,7 +52,7 @@ def register_menus(source_menus: list[dict[str, Any]]) -> None: # протест
 
 async def start_message(target: Bot | Message | CallbackQuery,
                         chat_id: int | None = None,
-                        *, menu_id: str, data: Any) -> None:
+                        *, menu_id: str, **data: Any) -> None:
     if __menu_data is None:
         raise MenuCoreError("Menu data is not initialized. "
                             "Call 'register_menus()' before accessing menus.")
@@ -60,6 +60,10 @@ async def start_message(target: Bot | Message | CallbackQuery,
         raise MenuCoreError(f"Menu with ID {repr(menu_id)} was not found. "
                             f"Available menu IDs: {list(__menu_data.keys())}")
     menu_data = __menu_data[menu_id]
+
+    for arg in menu_data.need_args:
+        if arg not in data.keys():
+            raise MenuCoreError(f"Missing required argument: '{arg}'")
 
     event = target
     if isinstance(target, Bot):
@@ -71,7 +75,7 @@ async def start_message(target: Bot | Message | CallbackQuery,
             event, 
             title=menu_data.title, 
             buttons=menu_data.buttons, 
-            attach=menu_data.attach
+            attach=menu_data.attach,
             **data
         )
 
@@ -79,5 +83,11 @@ async def start_message(target: Bot | Message | CallbackQuery,
 @router.callback_query(F.data.startswith("__mc:"))
 async def handler(callback: CallbackQuery) -> None:
     data = menu_cb.unpack(callback.data or "")
+    if data is None:
+        ...
+        return
+    
+    menu_id = data.get("__id")
+    func_id = data.get("__func_id")
 
     ...

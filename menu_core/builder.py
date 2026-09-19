@@ -50,6 +50,13 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
     ]
 
 
+def __format(text: str, **data: Any) -> str:
+    try:
+        return text.format(**data)
+    except KeyError:
+        return text
+
+
 def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
                             ) -> InlineKeyboardMarkup:
     inline_keyboard: list[list[InlineKeyboardButton]] = []
@@ -83,7 +90,7 @@ async def call(event: CallbackQuery | Message,
 
     message = event.message if isinstance(event, CallbackQuery) else event
 
-    text = title if title else ". . ."
+    text = __format(title, **data) if title else ". . ."
     media = __build_media(attach) if attach else None
     keyboard = __build_keyboard_markup(buttons) if buttons else None
 

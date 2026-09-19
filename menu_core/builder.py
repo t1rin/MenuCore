@@ -9,7 +9,7 @@ from aiogram.types import (InputMediaDocument, InputMediaPhoto,
                            InputMedia, FSInputFile)
 
 from .models import MenuButton
-from .errors import InvalidTypeAttach
+from .errors import InvalidTypeAttach, MenuCoreError
 from .callbacks import menu_cb
 
 
@@ -50,15 +50,9 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
     ]
 
 
-def __format(text: str, **data: Any) -> str:
-    try:
-        return text.format(**data)
-    except KeyError:
-        return text
-
-
-def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
-                            ) -> InlineKeyboardMarkup:
+def __build_keyboard(matrix_btns: list[list[MenuButton]],
+                     **context: str | int | None,
+                     ) -> InlineKeyboardMarkup:
     inline_keyboard: list[list[InlineKeyboardButton]] = []
     for line_btns in matrix_btns:
         line_keyboard: list[InlineKeyboardButton] = []
@@ -68,7 +62,7 @@ def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
                 __func_id = button.func
             else:
                 __func_id = None
-            data = menu_cb.pack(__id=__id, __func_id=__func_id)
+            data = menu_cb.pack(__id=__id, __func_id=__func_id, **context)
             keyboard_button = InlineKeyboardButton(
                 text=button.text, callback_data=data)
             line_keyboard.append(keyboard_button)
@@ -76,23 +70,41 @@ def __build_keyboard_markup(matrix_btns: list[list[MenuButton]],
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
 
+def __format(text: str, **data: Any) -> str:
+    try:
+        return text.format(**data)
+    except KeyError:
+        return text
+
+
 async def call(event: CallbackQuery | Message,
                *, title: str | None = None,
                buttons: list[list[MenuButton]] | None = None, 
                attach: dict[str, list[tuple[str, str]]] | None = None,
-               **data: Any) -> None:
+               need_args: list[str] | None = None,
+               **data: str | int | None) -> None:
     """Показывает сообщение с переданными параметрами:
     :code:`title` - текст сообщения
     :code:`buttons` - матрица объектов MenuButton
     :code:`attach` - прикрепления (фото, видео, документы и тд)
+    :code:`need_args` - указание обязательные параметров для data
     :code:`**data` - параметры форматирования title;
     контекст для обработки нажатия"""
 
     message = event.message if isinstance(event, CallbackQuery) else event
+    
+    if need_args:
+        for arg in need_args:
+            if arg not in data.keys():
+                raise MenuCoreError(f"Missing required argument: '{arg}'")
+    for val in data.values():
+        if not isinstance(val, (str, int, type(None))):
+            raise MenuCoreError(f"Invalid argument type: {type(val).__name__}"
+                                "Expected str, int, or None.")
 
     text = __format(title, **data) if title else ". . ."
     media = __build_media(attach) if attach else None
-    keyboard = __build_keyboard_markup(buttons) if buttons else None
+    keyboard = __build_keyboard(buttons, **data) if buttons else None
 
     edited = False
     if isinstance(message, Message):

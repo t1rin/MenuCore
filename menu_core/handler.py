@@ -58,28 +58,25 @@ async def start_menu(target: Bot | Message | CallbackQuery,
                      *, menu_id: str, **data: Any) -> None:
     if __menu_data is None:
         raise MenuCoreError("Menu data is not initialized. "
-                            "Call 'register_menus()' before accessing menus.")
+                            "Call 'start_menu()' before accessing menus.")
     if menu_id not in __menu_data:
         raise MenuCoreError(f"Menu with ID {repr(menu_id)} was not found. "
                             f"Available menu IDs: {list(__menu_data.keys())}")
     menu_data = __menu_data[menu_id]
 
-    for arg in menu_data.need_args:
-        if arg not in data.keys():
-            raise MenuCoreError(f"Missing required argument: '{arg}'")
-
     event = target
     if isinstance(target, Bot):
         if chat_id is None:
             raise MenuCoreError("`chat_id` cannot be None when target is Bot.")
-        event = await target.send_message(chat_id=chat_id, text="...")
+        event = await target.send_message(chat_id=chat_id, text=". . .")
     if not isinstance(event, Bot):
         await call(
             event, 
             title=menu_data.title, 
-            buttons=menu_data.buttons, 
+            buttons=menu_data.buttons,
             attach=menu_data.attach,
-            **data
+            need_args=menu_data.need_args,
+            **data,
         )
 
 
@@ -113,6 +110,7 @@ async def __handler(callback: CallbackQuery) -> None:
             title=menu.title, 
             buttons=menu.buttons, 
             attach=menu.attach,
+            need_args=menu.need_args,
             **new_data,
         )
 

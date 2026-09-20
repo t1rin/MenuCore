@@ -16,10 +16,25 @@ from .callbacks import menu_cb
 
 __logger = logging.getLogger(__name__)
 context_cache: dict[str, dict[str, Any]] = {}
+message_tokens: dict[tuple[int, int], set[str]] = {}
 
 
 def get_token(length: int) -> str:
     return token_urlsafe(length)[:length]
+
+
+def __invalidate_message(chat_id: int, message_id: int) -> None:
+    key = (chat_id, message_id)
+    old_tokens = message_tokens.pop(key, None)
+    if not old_tokens:
+        return
+    for token in old_tokens:
+        context_cache.pop(token, None)
+
+
+def __register_message(chat_id: int, message_id: int, tokens: set[str]) -> None:
+    if tokens:
+        message_tokens[(chat_id, message_id)] = tokens
 
 
 def __is_valid_types_attach(types_attach: list[str]) -> bool:
@@ -59,8 +74,8 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
 def __build_keyboard(matrix_btns: list[list[MenuButton]],
                      current_menu_id: str | None = None,
                      **context: str | int | None,
-                     ) -> InlineKeyboardMarkup:
-    global context_cache
+                     ) -> tuple[InlineKeyboardMarkup, set]:
+    new_tokens: set[str] = set()
     inline_keyboard: list[list[InlineKeyboardButton]] = []
     for line_btns in matrix_btns:
         line_keyboard: list[InlineKeyboardButton] = []
@@ -70,16 +85,17 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
                 __func_id = button.func
             else:
                 __func_id = None
-            context_id = get_token(length=8)
+            context_id = get_token(length=10)
             context_cache[context_id] = {
                 "__id": __id, "__crnt_id": current_menu_id,
                 "__func_id": __func_id, **context}
+            new_tokens.add(context_id)
             data = menu_cb.pack(context_id=context_id)
             keyboard_button = InlineKeyboardButton(
                 text=button.text, callback_data=data)
             line_keyboard.append(keyboard_button)
         inline_keyboard.append(line_keyboard)
-    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard), new_tokens
 
 
 def __format(text: str, **data: Any) -> str:
@@ -101,6 +117,7 @@ async def call(event: CallbackQuery | Message,
     :code:`buttons` - матрица объектов MenuButton
     :code:`attach` - прикрепления (фото, видео, документы и тд)
     :code:`need_args` - указание обязательные параметров для data
+    :code:`current_menu_id` - id показываемого меню
     :code:`**data` - параметры форматирования title;
     контекст для обработки нажатия"""
     
@@ -117,7 +134,15 @@ async def call(event: CallbackQuery | Message,
 
     text = __format(title, **data) if title else ". . ."
     media = __build_media(attach) if attach else None
-    keyboard = __build_keyboard(buttons, current_menu_id, **data) if buttons else None
+
+    new_tokens: set[str] = set()
+    keyboard: InlineKeyboardMarkup | None = None
+    if buttons is not None:
+        keyboard, new_tokens = __build_keyboard(
+            buttons, current_menu_id, **data)
+        
+    if isinstance(message, Message):
+        __invalidate_message(message.chat.id, message.message_id)
 
     edited = False
     if isinstance(message, Message):
@@ -134,6 +159,8 @@ async def call(event: CallbackQuery | Message,
             else:
                 __logger.debug(f"Could not edit message: {e}")
 
+    final_message: Message | None = message if (edited and isinstance(message, Message)) else None
+
     if not edited:
         target = message if isinstance(message, Message) else (
             event if isinstance(event, Message) else None)
@@ -142,9 +169,12 @@ async def call(event: CallbackQuery | Message,
             if media:
                 await target.answer_media_group(media=media)
                 if keyboard is not None:
-                    await target.answer("⬆️", reply_markup=keyboard)
+                    final_message = await target.answer("⬆️", reply_markup=keyboard)
             else:
-                await target.answer(text, reply_markup=keyboard)
+                final_message = await target.answer(text, reply_markup=keyboard)
+
+    if final_message is not None and new_tokens:
+        __register_message(final_message.chat.id, final_message.message_id, new_tokens)
 
     if isinstance(event, CallbackQuery):
         await event.answer()

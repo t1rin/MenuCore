@@ -8,7 +8,7 @@ from aiogram.types import Message, CallbackQuery
 from pydantic import ValidationError
 
 from .callbacks import menu_cb
-from .builder import call, context_cache
+from .builder import call, context_cache, message_tokens
 from .models import MenuRegistry, MenuMessage, MenuButton
 from .errors import RegisterError, MenuCoreError
 
@@ -117,7 +117,6 @@ async def __handler(callback: CallbackQuery) -> None:
             func(data)
 
     if menu is not None:
-        context_cache.clear()
         await call(
             callback,
             title=menu.title,
@@ -127,7 +126,8 @@ async def __handler(callback: CallbackQuery) -> None:
             current_menu_id=menu.id,
             **data,
         )
+    else:
+        await callback.answer()
 
     __logger.debug("current context: %r", context_cache)
-
-    await callback.answer()
+    __logger.debug("current messages: %r", message_tokens)

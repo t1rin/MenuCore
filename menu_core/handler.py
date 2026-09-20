@@ -1,4 +1,3 @@
-import uuid
 import logging
 import inspect
 from typing import Any, Callable
@@ -8,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from pydantic import ValidationError
 
 from .callbacks import menu_cb
-from .builder import call, context_cache, message_tokens
+from .builder import call, context_cache, get_token
 from .models import MenuRegistry, MenuMessage, MenuButton
 from .errors import RegisterError, MenuCoreError
 
@@ -47,7 +46,7 @@ def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
                     raise RegisterError(f"Menu {repr(menu.id)}: button {repr(button.text)} "
                                         f"references unknown child_id {repr(button.child_id)}")
                 if callable(button.func) and button.func not in __funcstions.values():
-                    func_id = str(uuid.uuid4())
+                    func_id = get_token(length=8)
                     __funcstions[func_id] = button.func
                     button.func = func_id
 
@@ -129,5 +128,7 @@ async def __handler(callback: CallbackQuery) -> None:
     else:
         await callback.answer()
 
-    __logger.debug("current context: %r", context_cache)
-    __logger.debug("current messages: %r", message_tokens)
+    if __logger.isEnabledFor(logging.DEBUG):
+        from .builder import message_tokens
+        __logger.debug("current context: %r", context_cache)
+        __logger.debug("current messages: %r", message_tokens)

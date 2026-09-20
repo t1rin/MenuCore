@@ -104,6 +104,67 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard), new_tokens
 
 
+async def __prepare_content(
+    title: str | None,
+    buttons: list[list[MenuButton]] | None,
+    attach: dict[str, list[tuple[str, str]]] | None,
+    need_args: list[str] | None,
+    current_menu_id: str | None,
+    data: dict[str, Any],
+) -> tuple[str, list[Any] | None, InlineKeyboardMarkup | None, set[str]]:
+    if need_args:
+        for arg in need_args:
+            if arg not in data.keys():
+                raise MenuCoreError(f"Missing required argument: '{arg}'")
+
+    text = __format(title, **data) if title else ". . ."
+    media = __build_media(attach) if attach else None
+
+    keyboard: InlineKeyboardMarkup | None = None
+    new_tokens: set[str] = set()
+    if buttons is not None:
+        keyboard, new_tokens = __build_keyboard(buttons, current_menu_id, **data)
+
+    return text, media, keyboard, new_tokens
+
+
+async def __try_edit_message(own_message: Message, text: str, media: list[Any] | None,
+                             keyboard: InlineKeyboardMarkup | None) -> bool:
+    try:
+        if not media:
+            await own_message.edit_text(text, reply_markup=keyboard)
+            return True
+        elif len(media) == 1:
+            await own_message.edit_media(media=media[0], reply_markup=keyboard)
+            return True
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            return True
+        else:
+            __logger.debug(f"Could not edit message: {e}")
+    return False
+
+
+async def __send_new_message(target: Message, own_message: Message | None,
+                             text: str, media: list[Any] | None,
+                             keyboard: InlineKeyboardMarkup | None,
+                             ) -> Message | None:
+    if own_message is not None:
+        await target.delete()
+
+    if media and len(media) > 1:
+        await target.answer_media_group(media=media)
+        if keyboard is not None:
+            return await target.answer(text, reply_markup=keyboard)
+        return None
+    elif media:
+        method = getattr(target, __SEND_METHOD_BY_CLASS[type(media[0])])
+        return await method(
+            media[0].media, caption=media[0].caption, reply_markup=keyboard)
+    else:
+        return await target.answer(text, reply_markup=keyboard)
+
+
 def __format(text: str, **data: Any) -> str:
     try:
         return text.format(**data)
@@ -134,50 +195,34 @@ async def call(event: CallbackQuery | Message,
             if arg not in data.keys():
                 raise MenuCoreError(f"Missing required argument: '{arg}'")
 
-    text = __format(title, **data) if title else ". . ."
-    media = __build_media(attach) if attach else None
-
-    new_tokens: set[str] = set()
-    keyboard: InlineKeyboardMarkup | None = None
-    if buttons is not None:
-        keyboard, new_tokens = __build_keyboard(
-            buttons, current_menu_id, **data)
+    text, media, keyboard, new_tokens = await __prepare_content(
+        title, buttons, attach, need_args, current_menu_id, data)
         
+    own_message: Message | None = None
     if isinstance(message, Message):
-        __invalidate_message(message.chat.id, message.message_id)
+        bot = message.bot
+        if (
+            bot is not None and
+            message.from_user is not None
+            and message.from_user.id == bot.id
+        ):
+            own_message = message
+
+    if own_message is not None:
+        __invalidate_message(own_message.chat.id, own_message.message_id)
 
     edited = False
-    if isinstance(message, Message):
-        try:
-            if not media:
-                await message.edit_text(text, reply_markup=keyboard)
-                edited = True
-            elif len(media) == 1:
-                await message.edit_media(media=media[0], reply_markup=keyboard)
-                edited = True
-        except TelegramBadRequest as e:
-            if "message is not modified" in str(e):
-                edited = True
-            else:
-                __logger.debug(f"Could not edit message: {e}")
+    if own_message is not None:
+        edited = await __try_edit_message(own_message, text, media, keyboard)
 
-    final_message: Message | None = message if (edited and isinstance(message, Message)) else None
+    final_message: Message | None = own_message if edited else None
 
     if not edited:
-        target = message if isinstance(message, Message) else (
+        target = own_message if own_message is not None else (
             event if isinstance(event, Message) else None)
         if target is not None:
-            await target.delete()
-            if media and len(media) > 1:
-                await target.answer_media_group(media=media)
-                if keyboard is not None:
-                    final_message = await target.answer(text, reply_markup=keyboard)
-            elif media:
-                method = getattr(target, __SEND_METHOD_BY_CLASS[type(media[0])])
-                final_message = await method(
-                    media[0].media, caption=media[0].caption, reply_markup=keyboard)
-            else:
-                final_message = await target.answer(text, reply_markup=keyboard)
+            final_message = await __send_new_message(
+                target, own_message, text, media, keyboard)
 
     if final_message is not None and new_tokens:
         __register_message(final_message.chat.id, final_message.message_id, new_tokens)

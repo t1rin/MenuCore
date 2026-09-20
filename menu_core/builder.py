@@ -73,8 +73,7 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
 
 def __build_keyboard(matrix_btns: list[list[MenuButton]],
                      current_menu_id: str | None = None,
-                     **context: str | int | None,
-                     ) -> tuple[InlineKeyboardMarkup, set]:
+                     **context: Any) -> tuple[InlineKeyboardMarkup, set]:
     new_tokens: set[str] = set()
     inline_keyboard: list[list[InlineKeyboardButton]] = []
     for line_btns in matrix_btns:
@@ -111,7 +110,7 @@ async def call(event: CallbackQuery | Message,
                attach: dict[str, list[tuple[str, str]]] | None = None,
                need_args: list[str] | None = None,
                current_menu_id: str | None = None,
-               **data: str | int | None) -> None:
+               **data: Any) -> None:
     """Показывает сообщение с переданными параметрами:
     :code:`title` - текст сообщения
     :code:`buttons` - матрица объектов MenuButton
@@ -127,10 +126,6 @@ async def call(event: CallbackQuery | Message,
         for arg in need_args:
             if arg not in data.keys():
                 raise MenuCoreError(f"Missing required argument: '{arg}'")
-    for val in data.values():
-        if not isinstance(val, (str, int, type(None))):
-            raise MenuCoreError(f"Invalid argument type: {type(val).__name__}"
-                                "Expected str, int, or None.")
 
     text = __format(title, **data) if title else ". . ."
     media = __build_media(attach) if attach else None

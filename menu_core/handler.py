@@ -86,6 +86,7 @@ async def start_menu(target: Bot | Message | CallbackQuery,
             buttons=menu_data.buttons,
             attach=menu_data.attach,
             need_args=menu_data.need_args,
+            current_menu_id=menu_id,
             **data,
         )
 
@@ -101,20 +102,19 @@ async def __handler(callback: CallbackQuery) -> None:
     
     menu_id = data.pop('__id', None)
     func_id = data.pop("__func_id", None)
+    current_menu_id = data.pop("__crnt_id", None)
 
     menu = None
     if __menu_data is not None:
-        menu = __menu_data.get(menu_id) if menu_id else None
+        menu = (__menu_data.get(menu_id) if menu_id
+                else __menu_data.get(current_menu_id))
     func = __funcstions.get(func_id) if func_id else None
     
-    new_data: dict = {}
     if func is not None:
         if inspect.iscoroutinefunction(func):
-            await func(data, new_data)
+            await func(data)
         else:
-            func(data, new_data)
-    else:
-        new_data = data
+            func(data)
 
     if menu is not None:
         context_cache.clear()
@@ -124,7 +124,8 @@ async def __handler(callback: CallbackQuery) -> None:
             buttons=menu.buttons,
             attach=menu.attach,
             need_args=menu.need_args,
-            **new_data,
+            current_menu_id=menu.id,
+            **data,
         )
 
     __logger.debug("current context: %r", context_cache)

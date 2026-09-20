@@ -57,6 +57,7 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
 
 
 def __build_keyboard(matrix_btns: list[list[MenuButton]],
+                     current_menu_id: str | None = None,
                      **context: str | int | None,
                      ) -> InlineKeyboardMarkup:
     global context_cache
@@ -71,7 +72,8 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
                 __func_id = None
             context_id = get_token(length=8)
             context_cache[context_id] = {
-                "__id": __id, "__func_id": __func_id, **context}
+                "__id": __id, "__crnt_id": current_menu_id,
+                "__func_id": __func_id, **context}
             data = menu_cb.pack(context_id=context_id)
             keyboard_button = InlineKeyboardButton(
                 text=button.text, callback_data=data)
@@ -92,6 +94,7 @@ async def call(event: CallbackQuery | Message,
                buttons: list[list[MenuButton]] | None = None, 
                attach: dict[str, list[tuple[str, str]]] | None = None,
                need_args: list[str] | None = None,
+               current_menu_id: str | None = None,
                **data: str | int | None) -> None:
     """Показывает сообщение с переданными параметрами:
     :code:`title` - текст сообщения
@@ -114,7 +117,7 @@ async def call(event: CallbackQuery | Message,
 
     text = __format(title, **data) if title else ". . ."
     media = __build_media(attach) if attach else None
-    keyboard = __build_keyboard(buttons, **data) if buttons else None
+    keyboard = __build_keyboard(buttons, current_menu_id, **data) if buttons else None
 
     edited = False
     if isinstance(message, Message):

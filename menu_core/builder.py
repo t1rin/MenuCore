@@ -14,6 +14,20 @@ from .errors import InvalidTypeAttach, MenuCoreError
 from .callbacks import menu_cb
 
 
+__TYPES_ATTACH: dict[str, type] = {
+    "document": InputMediaDocument,
+    "photo": InputMediaPhoto,
+    "video": InputMediaVideo,
+    "audio": InputMediaAudio,
+}
+
+__SEND_METHOD_BY_CLASS: dict[type, str] = {
+    InputMediaDocument: "answer_document",
+    InputMediaPhoto: "answer_photo",
+    InputMediaVideo: "answer_video",
+    InputMediaAudio: "answer_audio",
+}
+
 __logger = logging.getLogger(__name__)
 context_cache: dict[str, dict[str, Any]] = {}
 message_tokens: dict[tuple[int, int], set[str]] = {}
@@ -57,15 +71,8 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
     if not __is_valid_types_attach(list(attach.keys())):
         raise InvalidTypeAttach("Attachment type is not valid")
 
-    TYPES = {
-        "document": InputMediaDocument,
-        "photo": InputMediaPhoto,
-        "video": InputMediaVideo,
-        "audio": InputMediaAudio,
-    }
-
     return [
-        TYPES[_type](media=FSInputFile(url), caption=caption)
+        __TYPES_ATTACH[_type](media=FSInputFile(url), caption=caption)
         for _type, media_items in attach.items()
         for caption, url in media_items
     ]
@@ -160,11 +167,15 @@ async def call(event: CallbackQuery | Message,
         target = message if isinstance(message, Message) else (
             event if isinstance(event, Message) else None)
         if target is not None:
-            target.delete()
-            if media:
+            await target.delete()
+            if media and len(media) > 1:
                 await target.answer_media_group(media=media)
                 if keyboard is not None:
-                    final_message = await target.answer("⬆️", reply_markup=keyboard)
+                    final_message = await target.answer(text, reply_markup=keyboard)
+            elif media:
+                method = getattr(target, __SEND_METHOD_BY_CLASS[type(media[0])])
+                final_message = await method(
+                    media[0].media, caption=media[0].caption, reply_markup=keyboard)
             else:
                 final_message = await target.answer(text, reply_markup=keyboard)
 

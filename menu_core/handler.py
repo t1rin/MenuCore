@@ -7,8 +7,8 @@ from aiogram import Router, Bot, F
 from aiogram.types import Message, CallbackQuery
 from pydantic import ValidationError
 
-from .builder import call
 from .callbacks import menu_cb
+from .builder import call, context_cache
 from .models import MenuRegistry, MenuMessage, MenuButton
 from .errors import RegisterError, MenuCoreError
 
@@ -92,12 +92,13 @@ async def start_menu(target: Bot | Message | CallbackQuery,
 
 @__router.callback_query(F.data.startswith("__mc:"))
 async def __handler(callback: CallbackQuery) -> None:
-    data = menu_cb.unpack(callback.data or "")
+    callback_data = menu_cb.unpack(callback.data or "")
+    context_id = callback_data.get("context_id") if callback_data else None
+    data = context_cache.pop(context_id, None) if isinstance(context_id, str) else None
     if data is None:
-        __logger.error("Failed to unpack callback data: %r", callback.data)
+        __logger.error("Failed to unpack callback data")
         return
     
-    __logger.debug("current context: %r", data)
     menu_id = data.pop('__id', None)
     func_id = data.pop("__func_id", None)
 
@@ -116,13 +117,16 @@ async def __handler(callback: CallbackQuery) -> None:
         new_data = data
 
     if menu is not None:
+        context_cache.clear()
         await call(
-            callback, 
-            title=menu.title, 
-            buttons=menu.buttons, 
+            callback,
+            title=menu.title,
+            buttons=menu.buttons,
             attach=menu.attach,
             need_args=menu.need_args,
             **new_data,
         )
+
+    __logger.debug("current context: %r", context_cache)
 
     await callback.answer()

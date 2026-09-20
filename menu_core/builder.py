@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+from secrets import token_urlsafe
 
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
@@ -14,6 +15,11 @@ from .callbacks import menu_cb
 
 
 __logger = logging.getLogger(__name__)
+context_cache: dict[str, dict[str, Any]] = {}
+
+
+def get_token(length: int) -> str:
+    return token_urlsafe(length)[:length]
 
 
 def __is_valid_types_attach(types_attach: list[str]) -> bool:
@@ -53,6 +59,7 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
 def __build_keyboard(matrix_btns: list[list[MenuButton]],
                      **context: str | int | None,
                      ) -> InlineKeyboardMarkup:
+    global context_cache
     inline_keyboard: list[list[InlineKeyboardButton]] = []
     for line_btns in matrix_btns:
         line_keyboard: list[InlineKeyboardButton] = []
@@ -62,7 +69,10 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
                 __func_id = button.func
             else:
                 __func_id = None
-            data = menu_cb.pack(__id=__id, __func_id=__func_id, **context)
+            context_id = get_token(length=8)
+            context_cache[context_id] = {
+                "__id": __id, "__func_id": __func_id, **context}
+            data = menu_cb.pack(context_id=context_id)
             keyboard_button = InlineKeyboardButton(
                 text=button.text, callback_data=data)
             line_keyboard.append(keyboard_button)
@@ -90,7 +100,7 @@ async def call(event: CallbackQuery | Message,
     :code:`need_args` - указание обязательные параметров для data
     :code:`**data` - параметры форматирования title;
     контекст для обработки нажатия"""
-
+    
     message = event.message if isinstance(event, CallbackQuery) else event
     
     if need_args:

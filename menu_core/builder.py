@@ -2,6 +2,7 @@ import logging
 from typing import Any
 from secrets import token_urlsafe
 
+from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -30,25 +31,43 @@ __SEND_METHOD_BY_CLASS: dict[type, str] = {
 
 __logger = logging.getLogger(__name__)
 context_cache: dict[str, dict[str, Any]] = {}
-message_tokens: dict[tuple[int, int], set[str]] = {}
+message_tokens: dict[tuple[int, tuple[int, ...]], set[str]] = {}
 
 
 def get_token(length: int) -> str:
     return token_urlsafe(length)[:length]
 
 
-def __invalidate_message(chat_id: int, message_id: int) -> None:
-    key = (chat_id, message_id)
-    old_tokens = message_tokens.pop(key, None)
-    if not old_tokens:
+async def __invalidate_message(bot: Bot, chat_id: int, message_id: int) -> None:
+    key = None
+    for (c_id, msg_ids) in message_tokens.keys():
+        if c_id == chat_id and message_id in msg_ids:
+            key = (c_id, msg_ids)
+            break
+
+    if not key:
         return
-    for token in old_tokens:
-        context_cache.pop(token, None)
+
+    old_tokens = message_tokens.pop(key, None)
+    if old_tokens:
+        for token in old_tokens:
+            context_cache.pop(token, None)
+
+    _, msg_ids = key
+    for mid in msg_ids:
+        if mid == message_id:
+            continue
+        try:
+            await bot.delete_message(chat_id, mid)
+        except TelegramBadRequest as e:
+            __logger.debug(f"Could not delete message {mid}: {e}")
 
 
-def __register_message(chat_id: int, message_id: int, tokens: set[str]) -> None:
+def __register_messages(chat_id: int,
+                        message_ids: tuple[int, ...],
+                        tokens: set[str]) -> None:
     if tokens:
-        message_tokens[(chat_id, message_id)] = tokens
+        message_tokens[(chat_id, message_ids)] = tokens
 
 
 def __is_valid_types_attach(types_attach: list[str]) -> bool:
@@ -148,21 +167,22 @@ async def __try_edit_message(own_message: Message, text: str, media: list[Any] |
 async def __send_new_message(target: Message, own_message: Message | None,
                              text: str, media: list[Any] | None,
                              keyboard: InlineKeyboardMarkup | None,
-                             ) -> Message | None:
+                             ) -> list[Message] | None:
     if own_message is not None:
         await target.delete()
 
+    messages: list[Message] = []
     if media and len(media) > 1:
-        await target.answer_media_group(media=media)
+        messages.extend(await target.answer_media_group(media=media))
         if keyboard is not None:
-            return await target.answer(text, reply_markup=keyboard)
-        return None
+            messages.append(await target.answer(text, reply_markup=keyboard))
     elif media:
         method = getattr(target, __SEND_METHOD_BY_CLASS[type(media[0])])
-        return await method(
-            media[0].media, caption=media[0].caption, reply_markup=keyboard)
+        messages.append(await method(
+            media[0].media, caption=media[0].caption, reply_markup=keyboard))
     else:
-        return await target.answer(text, reply_markup=keyboard)
+        messages.append(await target.answer(text, reply_markup=keyboard))
+    return messages if messages else None
 
 
 def __format(text: str, **data: Any) -> str:
@@ -198,6 +218,7 @@ async def call(event: CallbackQuery | Message,
     text, media, keyboard, new_tokens = await __prepare_content(
         title, buttons, attach, need_args, current_menu_id, data)
         
+    bot: Bot | None = None
     own_message: Message | None = None
     if isinstance(message, Message):
         bot = message.bot
@@ -207,25 +228,31 @@ async def call(event: CallbackQuery | Message,
             and message.from_user.id == bot.id
         ):
             own_message = message
+        else:
+            bot = None
 
-    if own_message is not None:
-        __invalidate_message(own_message.chat.id, own_message.message_id)
+    if own_message is not None and bot is not None:
+        await __invalidate_message(bot, own_message.chat.id,
+                                   own_message.message_id)
 
     edited = False
     if own_message is not None:
         edited = await __try_edit_message(own_message, text, media, keyboard)
 
-    final_message: Message | None = own_message if edited else None
+    final_messages: list[Message] | None = None
+    if edited and own_message is not None:
+        final_messages = [own_message]
 
     if not edited:
         target = own_message if own_message is not None else (
             event if isinstance(event, Message) else None)
         if target is not None:
-            final_message = await __send_new_message(
+            final_messages = await __send_new_message(
                 target, own_message, text, media, keyboard)
 
-    if final_message is not None and new_tokens:
-        __register_message(final_message.chat.id, final_message.message_id, new_tokens)
+    if final_messages is not None and new_tokens:
+        message_ids = tuple(msg.message_id for msg in final_messages)
+        __register_messages(final_messages[0].chat.id, message_ids, new_tokens)
 
     if isinstance(event, CallbackQuery):
         await event.answer()

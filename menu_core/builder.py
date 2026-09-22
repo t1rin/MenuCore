@@ -98,7 +98,6 @@ def __build_media(attach: dict[str, list[tuple[str, str]]]) -> list[Any]:
 
 
 def __build_keyboard(matrix_btns: list[list[MenuButton]],
-                     current_menu_id: str | None = None,
                      **context: Any) -> tuple[InlineKeyboardMarkup, set]:
     new_tokens: set[str] = set()
     inline_keyboard: list[list[InlineKeyboardButton]] = []
@@ -107,10 +106,9 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
         for button in line_btns:
             __id = button.child_id
             __func = button.func
-            context_id = get_token(length=10)
+            context_id = get_token(length=8)
             context_cache[context_id] = {
-                "__id": __id, "__crnt_id": current_menu_id,
-                "__func": __func, **context}
+                "__id": __id, "__func": __func, **context}
             new_tokens.add(context_id)
             data = menu_cb.pack(context_id=context_id)
             keyboard_button = InlineKeyboardButton(
@@ -169,13 +167,11 @@ async def call(event: CallbackQuery | Message,
                *, title: str | None = None,
                buttons: list[list[MenuButton]] | None = None, 
                attach: dict[str, list[tuple[str, str]]] | None = None,
-               current_menu_id: str | None = None,
                **data: Any) -> None:
     """Показывает сообщение с переданными параметрами:
     :code:`title` - текст сообщения
     :code:`buttons` - матрица объектов MenuButton
     :code:`attach` - прикрепления (фото, видео, документы и тд)
-    :code:`current_menu_id` - id показываемого меню
     :code:`**data` - параметры форматирования title;
     контекст для обработки нажатия"""
     
@@ -183,7 +179,7 @@ async def call(event: CallbackQuery | Message,
 
     text = __format(title, **data) if title else ". . ."
     media = __build_media(attach) if attach else None
-    keyboard, new_tokens = (__build_keyboard(buttons, current_menu_id, **data)
+    keyboard, new_tokens = (__build_keyboard(buttons, **data)
                             if buttons is not None else (None, set()))
         
     bot: Bot | None = None

@@ -86,7 +86,6 @@ async def start_menu(target: Bot | Message | CallbackQuery,
             title=menu_data.title, 
             buttons=menu_data.buttons,
             attach=menu_data.attach,
-            current_menu_id=menu_id,
             **data,
         )
 
@@ -95,18 +94,16 @@ async def start_menu(target: Bot | Message | CallbackQuery,
 async def __handler(callback: CallbackQuery) -> None:
     callback_data = menu_cb.unpack(callback.data or "")
     context_id = callback_data.get("context_id") if callback_data else None
-    data = context_cache.pop(context_id, None) if isinstance(context_id, str) else None
+    data = context_cache.get(context_id) if isinstance(context_id, str) else None
     if data is None:
         raise MenuCoreError("Failed to unpack callback data")
     
+    menu_id = data.pop("__id", None)
     func = data.pop("__func", None)
-    menu_id = data.pop('__id', None)
-    current_menu_id = data.pop("__crnt_id", None)
-
+    
     menu = None
     if __menu_data is not None:
-        menu = (__menu_data.get(menu_id) if menu_id
-                else __menu_data.get(current_menu_id))
+        menu = __menu_data.get(menu_id) if menu_id else None
 
     if menu and not __is_valid_args(data, menu.need_args):
         raise MenuCoreError("Invalid arguments were passed to this menu.")
@@ -123,11 +120,13 @@ async def __handler(callback: CallbackQuery) -> None:
             title=menu.title,
             buttons=menu.buttons,
             attach=menu.attach,
-            current_menu_id=menu.id,
             **data,
         )
     else:
         await callback.answer()
+            
+    data["__id"] = menu_id
+    data["__func"] = func
 
     if __logger.isEnabledFor(logging.DEBUG):
         from .builder import message_tokens

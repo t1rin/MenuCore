@@ -108,20 +108,28 @@ async def __handler(callback: CallbackQuery) -> None:
     if menu and not __is_valid_args(data, menu.need_args):
         raise MenuCoreError("Invalid arguments were passed to this menu.")
 
+    _config_keys = ["title", "buttons", "attach"]
+    config: dict | None = {
+        k: getattr(menu, k)
+        for k in _config_keys
+    } if menu else None
+
     if func is not None:
         if inspect.iscoroutinefunction(func):
-            await func(data)
+            await func(data, config)
         else:
-            func(data)
+            func(data, config)
 
-    if menu is not None:
-        await call(
-            callback,
-            title=menu.title,
-            buttons=menu.buttons,
-            attach=menu.attach,
-            **data,
+    if config is not None and set(_config_keys) != set(config.keys()):
+        missing_or_extra = set(_config_keys) ^ set(config.keys())
+        raise MenuCoreError(
+            f"Menu config was corrupted by handler function. "
+            f"Expected keys: {_config_keys}, got: {list(config.keys())}. "
+            f"Mismatched keys: {list(missing_or_extra)}"
         )
+
+    if config is not None:
+        await call(callback, **config, **data)
     else:
         await callback.answer()
             

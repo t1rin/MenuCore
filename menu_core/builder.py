@@ -106,14 +106,11 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
         line_keyboard: list[InlineKeyboardButton] = []
         for button in line_btns:
             __id = button.child_id
-            if isinstance(button.func, str):
-                __func_id = button.func
-            else:
-                __func_id = None
+            __func = button.func
             context_id = get_token(length=10)
             context_cache[context_id] = {
                 "__id": __id, "__crnt_id": current_menu_id,
-                "__func_id": __func_id, **context}
+                "__func": __func, **context}
             new_tokens.add(context_id)
             data = menu_cb.pack(context_id=context_id)
             keyboard_button = InlineKeyboardButton(

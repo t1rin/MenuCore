@@ -15,14 +15,13 @@ from .errors import RegisterError, MenuCoreError
 __router = Router()
 __logger = logging.getLogger(__name__)
 __menu_data: MenuRegistry | None = None
-__funcstions: dict[str, Callable] = {}
 
 
 def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
     """Подключает меню и возвращает роутер обработчика
     :code:`source_menus` - список для регистрации меню"""
 
-    global __menu_data, __funcstions, __router
+    global __menu_data, __router
     if __menu_data is not None:
         raise RegisterError("Cannot register menus: menu data is already initialized.")
 
@@ -45,10 +44,6 @@ def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
                 if button.child_id is not None and button.child_id not in menu_registry:
                     raise RegisterError(f"Menu {repr(menu.id)}: button {repr(button.text)} "
                                         f"references unknown child_id {repr(button.child_id)}")
-                if callable(button.func) and button.func not in __funcstions.values():
-                    func_id = get_token(length=8)
-                    __funcstions[func_id] = button.func
-                    button.func = func_id
 
     __menu_data = menu_registry
 
@@ -99,15 +94,14 @@ async def __handler(callback: CallbackQuery) -> None:
         __logger.error("Failed to unpack callback data")
         return
     
+    func = data.pop("__func", None)
     menu_id = data.pop('__id', None)
-    func_id = data.pop("__func_id", None)
     current_menu_id = data.pop("__crnt_id", None)
 
     menu = None
     if __menu_data is not None:
         menu = (__menu_data.get(menu_id) if menu_id
                 else __menu_data.get(current_menu_id))
-    func = __funcstions.get(func_id) if func_id else None
     
     if func is not None:
         if inspect.iscoroutinefunction(func):

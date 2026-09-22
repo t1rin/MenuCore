@@ -120,30 +120,6 @@ def __build_keyboard(matrix_btns: list[list[MenuButton]],
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard), new_tokens
 
 
-async def __prepare_content(
-    title: str | None,
-    buttons: list[list[MenuButton]] | None,
-    attach: dict[str, list[tuple[str, str]]] | None,
-    need_args: list[str] | None,
-    current_menu_id: str | None,
-    data: dict[str, Any],
-) -> tuple[str, list[Any] | None, InlineKeyboardMarkup | None, set[str]]:
-    if need_args:
-        for arg in need_args:
-            if arg not in data.keys():
-                raise MenuCoreError(f"Missing required argument: '{arg}'")
-
-    text = __format(title, **data) if title else ". . ."
-    media = __build_media(attach) if attach else None
-
-    keyboard: InlineKeyboardMarkup | None = None
-    new_tokens: set[str] = set()
-    if buttons is not None:
-        keyboard, new_tokens = __build_keyboard(buttons, current_menu_id, **data)
-
-    return text, media, keyboard, new_tokens
-
-
 async def __try_edit_message(own_message: Message, text: str, media: list[Any] | None,
                              keyboard: InlineKeyboardMarkup | None) -> bool:
     try:
@@ -193,27 +169,22 @@ async def call(event: CallbackQuery | Message,
                *, title: str | None = None,
                buttons: list[list[MenuButton]] | None = None, 
                attach: dict[str, list[tuple[str, str]]] | None = None,
-               need_args: list[str] | None = None,
                current_menu_id: str | None = None,
                **data: Any) -> None:
     """Показывает сообщение с переданными параметрами:
     :code:`title` - текст сообщения
     :code:`buttons` - матрица объектов MenuButton
     :code:`attach` - прикрепления (фото, видео, документы и тд)
-    :code:`need_args` - указание обязательные параметров для data
     :code:`current_menu_id` - id показываемого меню
     :code:`**data` - параметры форматирования title;
     контекст для обработки нажатия"""
     
     message = event.message if isinstance(event, CallbackQuery) else event
-    
-    if need_args:
-        for arg in need_args:
-            if arg not in data.keys():
-                raise MenuCoreError(f"Missing required argument: '{arg}'")
 
-    text, media, keyboard, new_tokens = await __prepare_content(
-        title, buttons, attach, need_args, current_menu_id, data)
+    text = __format(title, **data) if title else ". . ."
+    media = __build_media(attach) if attach else None
+    keyboard, new_tokens = (__build_keyboard(buttons, current_menu_id, **data)
+                            if buttons is not None else (None, set()))
         
     bot: Bot | None = None
     own_message: Message | None = None

@@ -17,6 +17,10 @@ __logger = logging.getLogger(__name__)
 __menu_data: MenuRegistry | None = None
 
 
+def __is_valid_args(data: dict[str, Any], need_args: list[str]) -> bool:
+    return set(need_args) <= set(data.keys())
+
+
 def setup_menus(source_menus: list[dict[str, Any]]) -> Router:
     """Подключает меню и возвращает роутер обработчика
     :code:`source_menus` - список для регистрации меню"""
@@ -68,6 +72,9 @@ async def start_menu(target: Bot | Message | CallbackQuery,
                             f"Available menu IDs: {list(__menu_data.keys())}")
     menu_data = __menu_data[menu_id]
 
+    if not __is_valid_args(data, menu_data.need_args):
+        raise MenuCoreError("Invalid arguments were passed to this menu.")
+
     event = target
     if isinstance(target, Bot):
         if chat_id is None:
@@ -79,7 +86,6 @@ async def start_menu(target: Bot | Message | CallbackQuery,
             title=menu_data.title, 
             buttons=menu_data.buttons,
             attach=menu_data.attach,
-            need_args=menu_data.need_args,
             current_menu_id=menu_id,
             **data,
         )
@@ -91,8 +97,7 @@ async def __handler(callback: CallbackQuery) -> None:
     context_id = callback_data.get("context_id") if callback_data else None
     data = context_cache.pop(context_id, None) if isinstance(context_id, str) else None
     if data is None:
-        __logger.error("Failed to unpack callback data")
-        return
+        raise MenuCoreError("Failed to unpack callback data")
     
     func = data.pop("__func", None)
     menu_id = data.pop('__id', None)
@@ -102,7 +107,10 @@ async def __handler(callback: CallbackQuery) -> None:
     if __menu_data is not None:
         menu = (__menu_data.get(menu_id) if menu_id
                 else __menu_data.get(current_menu_id))
-    
+
+    if menu and not __is_valid_args(data, menu.need_args):
+        raise MenuCoreError("Invalid arguments were passed to this menu.")
+
     if func is not None:
         if inspect.iscoroutinefunction(func):
             await func(data)
@@ -115,7 +123,6 @@ async def __handler(callback: CallbackQuery) -> None:
             title=menu.title,
             buttons=menu.buttons,
             attach=menu.attach,
-            need_args=menu.need_args,
             current_menu_id=menu.id,
             **data,
         )

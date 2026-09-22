@@ -7,7 +7,7 @@ class MenuButton(BaseModel):
 
     text: str
     child_id: str | None = None
-    func: Callable[..., Any] | str | None = None
+    func: Callable[..., Any] | None = None
 
 
 class MenuMessage(BaseModel):

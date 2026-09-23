@@ -91,21 +91,21 @@ async def start_menu(target: Bot | Message | CallbackQuery,
 
 
 @__router.callback_query(F.data.startswith("__mc:"))
-async def __handler(callback: CallbackQuery) -> None:
+async def __handler(callback: CallbackQuery, **handler_data: Any) -> None:
     callback_data = menu_cb.unpack(callback.data or "")
     context_id = callback_data.get("context_id") if callback_data else None
-    data = context_cache.get(context_id) if isinstance(context_id, str) else None
-    if data is None:
+    context_data = context_cache.get(context_id) if isinstance(context_id, str) else None
+    if context_data is None:
         raise MenuCoreError("Failed to unpack callback data")
     
-    menu_id = data.pop("__id", None)
-    func = data.pop("__func", None)
+    menu_id = context_data.pop("__id", None)
+    func = context_data.pop("__func", None)
     
     menu = None
     if __menu_data is not None:
         menu = __menu_data.get(menu_id) if menu_id else None
 
-    if menu and not __is_valid_args(data, menu.need_args):
+    if menu and not __is_valid_args(context_data, menu.need_args):
         raise MenuCoreError("Invalid arguments were passed to this menu.")
 
     _config_keys = ["title", "buttons", "attach"]
@@ -116,9 +116,9 @@ async def __handler(callback: CallbackQuery) -> None:
 
     if func is not None:
         if inspect.iscoroutinefunction(func):
-            await func(data, config)
+            await func(context_data, config, handler_data)
         else:
-            func(data, config)
+            func(context_data, config, handler_data)
 
     if config is not None and set(_config_keys) != set(config.keys()):
         missing_or_extra = set(_config_keys) ^ set(config.keys())
@@ -129,12 +129,12 @@ async def __handler(callback: CallbackQuery) -> None:
         )
 
     if config is not None:
-        await call(callback, **config, **data)
+        await call(callback, **config, **context_data)
     else:
         await callback.answer()
             
-    data["__id"] = menu_id
-    data["__func"] = func
+    context_data["__id"] = menu_id
+    context_data["__func"] = func
 
     if __logger.isEnabledFor(logging.DEBUG):
         from .builder import message_tokens
